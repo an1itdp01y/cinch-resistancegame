@@ -90,13 +90,15 @@ module Cinch
       #--------------------------------------------------------------------------------
       
       def voice_if_in_game(m)
-        if @game.has_player?(m.user)
+        game = @game
+        if game.has_player?(m.user)
           Channel(@channel_name).voice(m.user)
         end
       end
 
       def remove_if_not_started(m, user)
-        if @game.not_started?
+        game = @game
+        if game.not_started?
           self.remove_user_from_game(user)
         end
       end
@@ -108,9 +110,10 @@ module Cinch
       end
 
       def start_idle_timer
+        game = @game
         Timer(300) do
           puts "checking..."
-          @game.players.map{|p| p.user }.each do |user|
+          game.players.map{|p| p.user }.each do |user|
             puts " => #{user.nick}"
             user.refresh
             if user.idle > @idle_timer_length
@@ -228,20 +231,22 @@ module Cinch
       end
 
       def list_players(m)
-        if @game.players.empty?
+        game = @game
+        if game.players.empty?
           m.reply "No one has joined the game yet."
         else
-          m.reply @game.players.map{ |p| p == @game.hammer ? "#{dehighlight_nick(p.user.nick)}*" : dehighlight_nick(p.user.nick) }.join(' ')
+          m.reply game.players.map{ |p| p == game.hammer ? "#{dehighlight_nick(p.user.nick)}*" : dehighlight_nick(p.user.nick) }.join(' ')
         end
       end
 
       def missions_overview(m)
-        round = @game.current_round.number
+        game = @game
+        round = game.current_round.number
         (1..round).to_a.each do |number|
-          prev_round = @game.get_prev_round(number)
-          if ! prev_round.nil? && (prev_round.ended? || prev_round.in_mission_phase? || @game.current_round.in_assassinate_phase?)
+          prev_round = game.get_prev_round(number)
+          if ! prev_round.nil? && (prev_round.ended? || prev_round.in_mission_phase? || game.current_round.in_assassinate_phase?)
             team = prev_round.team
-            if prev_round.ended? || @game.current_round.in_assassinate_phase?
+            if prev_round.ended? || game.current_round.in_assassinate_phase?
               if prev_round.mission_success?
                 if prev_round.special_round?
                   fail_count = prev_round.mission_fails
@@ -253,7 +258,7 @@ module Cinch
               else
                 mission_result = "FAILED (#{prev_round.mission_fails})"
               end
-              if @game.variants.include?(:excalibur)
+              if game.variants.include?(:excalibur)
                 unless prev_round.excalibured.nil?
                   mission_result += " - #{prev_round.excalibur_holder.user.nick} xCals #{prev_round.excalibured.user.nick}"
                 end
@@ -270,8 +275,9 @@ module Cinch
       end
 
       def mission_summary(m, round_number)
+        game = @game
         number = round_number.to_i
-        prev_round = @game.get_prev_round(number)
+        prev_round = game.get_prev_round(number)
         if prev_round.nil?
           m.reply "That mission hasn't started yet."
         else
@@ -279,15 +285,15 @@ module Cinch
           m.reply "MISSION #{number}"
           teams.each_with_index do |team, i|
             went_team = team.team_makes? ? " - MISSION" : ""
-            if team.team_votes.length == @game.players.length # this should probably be a method somewhere?
+            if team.team_votes.length == game.players.length # this should probably be a method somewhere?
               m.reply "Team #{i+1} - Leader: #{dehighlight_nick(team.team_leader.user.nick)} - Team: #{format_team(team, true)} - Votes: #{self.format_votes(team.team_votes, true)}#{went_team}"
             elsif i == 0
               m.reply "No teams have been voted on yet."
             end
           end
-          if prev_round.ended? || @game.current_round.in_assassinate_phase? || @game.current_round.in_lady_phase?
+          if prev_round.ended? || game.current_round.in_assassinate_phase? || game.current_round.in_lady_phase?
             xcal_result = ""
-            if @game.variants.include?(:excalibur)
+            if game.variants.include?(:excalibur)
               if prev_round.excalibured.nil?
                 xcal_result = " - Excalibur not used"
               else 
@@ -300,34 +306,36 @@ module Cinch
       end
 
       def game_info(m)
-        if @game.started?
+        game = @game
+        if game.started?
           m.reply self.get_game_info
         end
       end
 
       def status(m)
-        if @game.started?
-          current_round = @game.current_round
+        game = @game
+        if game.started?
+          current_round = game.current_round
           if current_round.in_team_making_phase?
-            status = "Waiting on #{@game.team_leader.user} to propose a team of #{@game.current_team_size}"
+            status = "Waiting on #{game.team_leader.user} to propose a team of #{game.current_team_size}"
           elsif current_round.in_team_proposed_phase?
-            status = "Team proposed: #{self.current_proposed_team} - Waiting on #{@game.team_leader.user} to confirm or choose a new team"
+            status = "Team proposed: #{self.current_proposed_team} - Waiting on #{game.team_leader.user} to confirm or choose a new team"
           elsif current_round.in_vote_phase?
-            status = "Waiting on players to vote: #{@game.not_voted.map(&:user).join(", ")}"
+            status = "Waiting on players to vote: #{game.not_voted.map(&:user).join(", ")}"
           elsif current_round.in_mission_phase?
-            status = "Waiting on players to return from the mission: #{@game.not_back_from_mission.map(&:user).join(", ")}"
+            status = "Waiting on players to return from the mission: #{game.not_back_from_mission.map(&:user).join(", ")}"
           elsif current_round.in_excalibur_phase?
-            status = "Waiting on #{@game.current_round.excalibur_holder.user.nick} to choose to use Excalibur or not"
+            status = "Waiting on #{game.current_round.excalibur_holder.user.nick} to choose to use Excalibur or not"
           elsif current_round.in_lady_phase?
-            status = "Waiting on #{@game.lady_token.user.nick} to choose someone to examine with Lady of the Lake"
+            status = "Waiting on #{game.lady_token.user.nick} to choose someone to examine with Lady of the Lake"
           elsif current_round.in_assassinate_phase?
             status = "Waiting on the assassin to choose a target"
           end
         else
-          if @game.player_count.zero?
+          if game.player_count.zero?
             status = "No game in progress."
           else
-            status = "A game is forming. #{@game.player_count} players have joined: #{@game.players.map(&:user).join(", ")}"
+            status = "A game is forming. #{game.player_count} players have joined: #{game.players.map(&:user).join(", ")}"
           end
         end
 
@@ -349,16 +357,17 @@ module Cinch
       end
 
       def invite(m)
-        if @game.accepting_players?
-          if @game.invitation_sent?
+        game = @game
+        if game.accepting_players?
+          if game.invitation_sent?
             m.reply "An invitation cannot be sent out again so soon."
           else      
-            @game.mark_invitation_sent
+            game.mark_invitation_sent
             User(m.user).send "Invitation has been sent."
 
             settings = load_settings || {}
             subscribers = settings["subscribers"]
-            current_players = @game.players.map{ |p| p.user.nick }
+            current_players = game.players.map{ |p| p.user.nick }
             subscribers.shuffle!.each do |subscriber|
               unless current_players.include? subscriber
                 User(subscriber).refresh
@@ -370,7 +379,7 @@ module Cinch
 
             # allow for reset after provided time
             Timer(@invite_timer_length, shots: 1) do
-              @game.reset_invitation
+              game.reset_invitation
             end
           end
         end
@@ -418,18 +427,19 @@ module Cinch
       #--------------------------------------------------------------------------------
 
       def join(m)
+        game = @game
         # self.reset_timer(m)
         if Channel(@channel_name).has_user?(m.user)
-          if @game.accepting_players? 
-            added = @game.add_player(m.user)
+          if game.accepting_players?
+            added = game.add_player(m.user)
             unless added.nil?
-              Channel(@channel_name).send "#{m.user.nick} has joined the game (#{@game.players.count}/#{Game::MAX_PLAYERS})"
+              Channel(@channel_name).send "#{m.user.nick} has joined the game (#{game.players.count}/#{Game::MAX_PLAYERS})"
               Channel(@channel_name).voice(m.user)
             end
           else
-            if @game.started?
+            if game.started?
               Channel(@channel_name).send "#{m.user.nick}: Game has already started."
-            elsif @game.at_max_players?
+            elsif game.at_max_players?
               Channel(@channel_name).send "#{m.user.nick}: Game is at max players."
             else
               Channel(@channel_name).send "#{m.user.nick}: You cannot join."
@@ -441,63 +451,65 @@ module Cinch
       end
 
       def leave(m)
-        if @game.accepting_players?
-          left = @game.remove_player(m.user)
+        game = @game
+        if game.accepting_players?
+          left = game.remove_player(m.user)
           unless left.nil?
-            Channel(@channel_name).send "#{m.user.nick} has left the game (#{@game.players.count}/#{Game::MAX_PLAYERS})"
+            Channel(@channel_name).send "#{m.user.nick} has left the game (#{game.players.count}/#{Game::MAX_PLAYERS})"
             Channel(@channel_name).devoice(m.user)
           end
         else
-          if @game.started?
+          if game.started?
             m.reply "Game is in progress.", true
           end
         end
       end
 
       def start_game(m)
-        unless @game.started?
-          if @game.at_min_players?
-            if @game.has_player?(m.user)
+        game = @game
+        unless game.started?
+          if game.at_min_players?
+            if game.has_player?(m.user)
               @idle_timer.stop
-              @game.start_game!
+              game.start_game!
 
               self.pass_out_loyalties
 
               Channel(@channel_name).send "The game has started. #{self.get_game_info}"
 
-              if @game.avalon? 
+              if game.avalon?
                 Channel(@channel_name).send "This is Resistance: Avalon, with #{self.game_settings[:roles].join(", ")}. Using variants: #{self.game_settings[:variants].join(", ")}"
               end
-              if @game.with_variant?(:blind_spies)
+              if game.with_variant?(:blind_spies)
                 Channel(@channel_name).send "VARIANT: This is the Blind Spies variant. Spies do not reveal to each other."
               end
-              if @game.with_variant?(:lancelot1)
+              if game.with_variant?(:lancelot1)
                 Channel(@channel_name).send "VARIANT: This is the Lancelot #1 variant. Lancelots will switch 0, 1, or 2 times, starting at the beginning of Mission 3. Evil Lancelot does not know other spies."
               end
-              if @game.with_variant?(:lancelot2)
+              if game.with_variant?(:lancelot2)
                 Channel(@channel_name).send "VARIANT: This is the Lancelot #2 variant. Lancelots will switch 0, 1, or 2 times at times known in advance. The currently-evil Lancelot MUST fail missions he is on. Evil Lancelot does not know other spies."
                 Channel(@channel_name).send "LANCELOT CHANGES SIDES: " + self.format_lancelot_deck
               end
-              if @game.with_variant?(:lancelot3)
+              if game.with_variant?(:lancelot3)
                 Channel(@channel_name).send "VARIANT: This is the Lancelot #3 variant. Lancelots have revealed to each other."
               end
-              if @game.player_count >= 7
+              if game.player_count >= 7
                 Channel(@channel_name).send "NOTE: This is a 7+ player game. Mission 4 will require TWO FAILS for the Spies."
               end
 
-              Channel(@channel_name).send "Player order is: #{@game.players.map{ |p| p.user.nick }.join(' ')}"
-              if @game.variants.include?(:lady)
-                Channel(@channel_name).send "Lady of the Lake starts with #{@game.lady_token.user.nick}"
+              Channel(@channel_name).send "Player order is: #{game.players.map{ |p| p.user.nick }.join(' ')}"
+              if game.variants.include?(:lady)
+                Channel(@channel_name).send "Lady of the Lake starts with #{game.lady_token.user.nick}"
               end
 
-              if @game.variants.include?(:lancelot2)
-                @game.play_lancelot_card
+              if game.variants.include?(:lancelot2)
+                game.play_lancelot_card
                 self.show_lancelot_card
               end
 
-              Channel(@channel_name).send "MISSION #{@game.current_round.number}. Team Leader: #{@game.team_leader.user.nick}. Please choose a team of #{@game.current_team_size} to go on the first mission."
-              User(@game.team_leader.user).send "You are team leader. Please choose a team of #{@game.current_team_size} to go on first mission. \"!team#{team_example(@game.current_team_size)}\""
-              User(@game.team_leader.user).send "After you've chosen a team, \"!confirm\" to put it up for vote, or you can make a new team."
+              Channel(@channel_name).send "MISSION #{game.current_round.number}. Team Leader: #{game.team_leader.user.nick}. Please choose a team of #{game.current_team_size} to go on the first mission."
+              User(game.team_leader.user).send "You are team leader. Please choose a team of #{game.current_team_size} to go on first mission. \"!team#{team_example(game.current_team_size)}\""
+              User(game.team_leader.user).send "After you've chosen a team, \"!confirm\" to put it up for vote, or you can make a new team."
             else
               m.reply "You are not in the game.", true
             end
@@ -508,10 +520,11 @@ module Cinch
       end
 
       def propose_team(m, team_members)
+        game = @game
         if team_members != "confirm" 
           # make sure the providing user is team leader 
-          player_nicks = @game.players.map{|p| p.user.nick }
-          if m.user == @game.team_leader.user
+          player_nicks = game.players.map{|p| p.user.nick }
+          if m.user == game.team_leader.user
             valid_team = false
             players = []
             players_with_xcal = []  
@@ -531,7 +544,7 @@ module Cinch
               else 
                 best_nick = p
               end
-              player = @game.find_player(User(best_nick)) || best_nick
+              player = game.find_player(User(best_nick)) || best_nick
               xcal = p.end_with?("+") || p.start_with?("+")
               players_with_xcal << { :player => player, :xcal => xcal } 
               players << player
@@ -544,38 +557,38 @@ module Cinch
 
             # make sure the names are valid
             if non_players.count > 0
-              User(@game.team_leader.user).send "Cannot find player(s): #{non_players.join(', ')}"
+              User(game.team_leader.user).send "Cannot find player(s): #{non_players.join(', ')}"
             # then check sizes
-            elsif players.count < @game.current_team_size
-              User(@game.team_leader.user).send "You don't have enough operatives on the team. You need #{@game.current_team_size}."
-            elsif players.count > @game.current_team_size
-              User(@game.team_leader.user).send "You have too many operatives on the team. You need #{@game.current_team_size}."
+            elsif players.count < game.current_team_size
+              User(game.team_leader.user).send "You don't have enough operatives on the team. You need #{game.current_team_size}."
+            elsif players.count > game.current_team_size
+              User(game.team_leader.user).send "You have too many operatives on the team. You need #{game.current_team_size}."
             # then we are okay
             else
-              if @game.variants.include?(:excalibur)
+              if game.variants.include?(:excalibur)
                 players_with_xcal.keep_if{ |px| px[:xcal] }
                 # none
                 if players_with_xcal.count == 0
-                  User(@game.team_leader.user).send "You must give Excalibur to someone."
+                  User(game.team_leader.user).send "You must give Excalibur to someone."
                 # too many
                 elsif players_with_xcal.count > 1
-                  User(@game.team_leader.user).send "You can only give Excalibur to one operative."
+                  User(game.team_leader.user).send "You can only give Excalibur to one operative."
                 # should only be one by this point
                 elsif players_with_xcal.first[:player].user == m.user
-                  User(@game.team_leader.user).send "You cannot give Excalibur to yourself."
+                  User(game.team_leader.user).send "You cannot give Excalibur to yourself."
                 else
                   valid_team = true
-                  @game.current_round.team.give_excalibur_to(players_with_xcal.first[:player])
+                  game.current_round.team.give_excalibur_to(players_with_xcal.first[:player])
                 end
               else
                 valid_team = true
               end
             end
             if valid_team
-              @game.make_team(actual_players)
-              if @game.team_selected? # another safe check just because
+              game.make_team(actual_players)
+              if game.team_selected? # another safe check just because
                 Channel(@channel_name).send "#{m.user.nick} is proposing the team: #{self.current_proposed_team}."
-                @game.current_round.team_proposed
+                game.current_round.team_proposed
               end
             end
           else
@@ -585,7 +598,8 @@ module Cinch
       end
 
       def current_proposed_team
-        format_team @game.current_round.team
+        game = @game
+        format_team game.current_round.team
       end
 
       def format_team(team, dehighlight = false)
@@ -598,22 +612,23 @@ module Cinch
       end
 
       def confirm_team(m)
+        game = @game
         # make sure the providing user is team leader 
-        if m.user == @game.team_leader.user
-          if @game.team_selected?
-            unless @game.current_round.in_vote_phase?
-              @game.current_round.call_for_votes
+        if m.user == game.team_leader.user
+          if game.team_selected?
+            unless game.current_round.in_vote_phase?
+              game.current_round.call_for_votes
               Channel(@channel_name).send "The proposed team: #{self.current_proposed_team}. Time to vote!"
-              @game.players.each do |p|
-                hammer_warning = (@game.current_round.hammer_team?) ? " This is your LAST chance at voting a team for this mission; if this team is not accepted, the Resistance loses." : ""
-                vote_prompt = "Time to vote! Vote whether or not you want #{@game.team_leader.user}'s team (#{self.current_proposed_team}) to go on the mission or not. \"!vote yes\" or \"!vote no\".#{hammer_warning}"
+              game.players.each do |p|
+                hammer_warning = (game.current_round.hammer_team?) ? " This is your LAST chance at voting a team for this mission; if this team is not accepted, the Resistance loses." : ""
+                vote_prompt = "Time to vote! Vote whether or not you want #{game.team_leader.user}'s team (#{self.current_proposed_team}) to go on the mission or not. \"!vote yes\" or \"!vote no\".#{hammer_warning}"
                 User(p.user).send vote_prompt
               end
             else
-              User(@game.team_leader.user).send "The team has already been confirmed"
+              User(game.team_leader.user).send "The team has already been confirmed"
             end
           else 
-            User(@game.team_leader.user).send "You don't have enough members on the team. You need #{@game.current_team_size} operatives."
+            User(game.team_leader.user).send "You don't have enough members on the team. You need #{game.current_team_size} operatives."
           end 
         else
           User(m.user).send "You are not the team leader."
@@ -621,15 +636,16 @@ module Cinch
       end
 
       def team_vote(m, vote)
-        if @game.current_round.in_vote_phase? && @game.has_player?(m.user)
+        game = @game
+        if game.current_round.in_vote_phase? && game.has_player?(m.user)
           vote.downcase!
           if ['cancel'].include?(vote)
-            @game.cancel_vote_for_team(m.user)
+            game.cancel_vote_for_team(m.user)
             User(m.user).send "Your vote has been canceled."
           elsif ['yes', 'no'].include?(vote)
-            @game.vote_for_team(m.user, vote)
+            game.vote_for_team(m.user, vote)
             User(m.user).send "You voted '#{vote}' for the team."
-            if @game.all_team_votes_in?
+            if game.all_team_votes_in?
               self.process_team_votes
             end
           else 
@@ -639,9 +655,10 @@ module Cinch
       end
 
       def mission_vote(m, vote)
-        if @game.current_round.in_mission_phase?
-          player = @game.find_player(m.user)
-          if @game.with_variant?(:lancelot2) && player.currently_evil_lancelot?
+        game = @game
+        if game.current_round.in_mission_phase?
+          player = game.find_player(m.user)
+          if game.with_variant?(:lancelot2) && player.currently_evil_lancelot?
             valid_options = ['fail']
           elsif player.spy?
             valid_options = ['pass', 'fail']
@@ -649,14 +666,14 @@ module Cinch
             valid_options = ['pass']
           end
 
-          if @game.current_round.team.players.include?(player)
+          if game.current_round.team.players.include?(player)
             vote.downcase!
             if valid_options.include?(vote)
-              unless  @game.compare_vote_for_mission(m.user, vote)
-                @game.vote_for_mission(m.user, vote)
+              unless  game.compare_vote_for_mission(m.user, vote)
+                game.vote_for_mission(m.user, vote)
                 User(m.user).send "You voted for the mission to '#{vote}'."
-                if @game.all_mission_votes_in?
-                  if @game.variants.include?(:excalibur)
+                if game.all_mission_votes_in?
+                  if game.variants.include?(:excalibur)
                     self.prompt_for_excalibur
                   else
                     self.process_mission_votes
@@ -673,9 +690,10 @@ module Cinch
       end
 
       def assassinate_player(m, target)
-        if @game.is_over? && @game.current_round.in_assassinate_phase?
-          if @game.find_assassin.user == m.user
-            killed = @game.find_player(target)
+        game = @game
+        if game.is_over? && game.current_round.in_assassinate_phase?
+          if game.find_assassin.user == m.user
+            killed = game.find_player(target)
 
             # We don't let the Assassin kill a spy known to him.
             # An Oberon/Assassin can kill anyone.
@@ -691,7 +709,7 @@ module Cinch
             # so we avoid that hairy issue. Lancelot3/Assassin could work, but
             # is not implemented either for simplicity.
 
-            assassin_is_oberon = @game.assassin_dual == :oberon
+            assassin_is_oberon = game.assassin_dual == :oberon
             if killed.nil?
               User(m.user).send "\"#{target}\" is an invalid target."
             elsif killed.original_spy? && !assassin_is_oberon && !killed.role?(:oberon)
@@ -715,9 +733,10 @@ module Cinch
       end
 
       def lady_check(m, target)
-        if @game.current_round.in_lady_phase?
-          if @game.lady_token.user == m.user
-            checking = @game.find_player(target)
+        game = @game
+        if game.current_round.in_lady_phase?
+          if game.lady_token.user == m.user
+            checking = game.find_player(target)
             if checking.nil?
               User(m.user).send "\"#{target}\" is an invalid target."
             elsif checking.ladied?
@@ -729,7 +748,7 @@ module Cinch
               else 
                 User(m.user).send "#{target} is GOOD"
               end
-              @game.give_lady_to(checking)
+              game.give_lady_to(checking)
               self.start_new_round
             end
 
@@ -740,18 +759,19 @@ module Cinch
       end
 
       def excalibur_use(m, target)
-        if @game.current_round.in_excalibur_phase?
-          if @game.current_round.excalibur_holder.user == m.user
-            excalibured = @game.find_player(target)
+        game = @game
+        if game.current_round.in_excalibur_phase?
+          if game.current_round.excalibur_holder.user == m.user
+            excalibured = game.find_player(target)
             if excalibured.nil?
               User(m.user).send "\"#{target}\" is an invalid target."
-            elsif ! @game.current_round.team.has_player?(excalibured)
+            elsif ! game.current_round.team.has_player?(excalibured)
               User(m.user).send "#{target} was not on the mission."
             else
               Channel(@channel_name).send "#{m.user.nick} uses Excalibur on #{target}."
-              old_vote = @game.current_round.mission_vote_for(excalibured)
-              @game.current_round.use_excalibur_on(excalibured)
-              new_vote = @game.current_round.mission_vote_for(excalibured)
+              old_vote = game.current_round.mission_vote_for(excalibured)
+              game.current_round.use_excalibur_on(excalibured)
+              new_vote = game.current_round.mission_vote_for(excalibured)
               User(m.user).send "#{target} initially put in a #{old_vote.upcase}. You switched it to a #{new_vote.upcase}."
               self.process_mission_votes
             end
@@ -762,8 +782,9 @@ module Cinch
       end
 
       def excalibur_no(m)
-        if @game.current_round.in_excalibur_phase?
-          if @game.current_round.excalibur_holder.user == m.user
+        game = @game
+        if game.current_round.in_excalibur_phase?
+          if game.current_round.excalibur_holder.user == m.user
             Channel(@channel_name).send "#{m.user.nick} chooses not to use Excalibur."
             self.process_mission_votes
           else
@@ -782,29 +803,32 @@ module Cinch
       end
       
       def pass_out_loyalties
-        @game.players.each do |p|
+        game = @game
+        game.players.each do |p|
           User(p.user).send "="*40
           reply = self.tell_loyalty_to(p)
         end
       end
 
       def whoami(m)
-        if @game.started?
-          player = @game.find_player(m.user)
+        game = @game
+        if game.started?
+          player = game.find_player(m.user)
           reply = self.tell_loyalty_to(player)
-          self.warn_about_lancelots(player) if @game.lancelots_switched?
+          self.warn_about_lancelots(player) if game.lancelots_switched?
         end
       end
       
       def tell_loyalty_to(player)
-        if @game.avalon?
-          spies = @game.original_spies
+        game = @game
+        if game.avalon?
+          spies = game.original_spies
 
           # if player is a spy, they can see other spies, but not oberon if he's in play
           other_spies = player.spy? ? (spies.reject{ |s| s.role?(:oberon) || s == player }) : []
 
-          if @game.variants.include?(:lancelot1) || @game.variants.include?(:lancelot2)
-            evil_lancelot = @game.find_player_by_role(:evil_lancelot)
+          if game.variants.include?(:lancelot1) || game.variants.include?(:lancelot2)
+            evil_lancelot = game.find_player_by_role(:evil_lancelot)
             show_evil_lance = "Evil Lancelot is: #{evil_lancelot.user.nick}."
           end
 
@@ -818,7 +842,7 @@ module Cinch
             spy_info << " The other spies are: #{other_spies}."
           end
           # if playing with oberon, notify spies they are missing one spy in their info
-          if oberon_note = @game.with_role?(:oberon) 
+          if oberon_note = game.with_role?(:oberon)
             spy_info << " Oberon is a spy, but does not reveal to you and does not know who the other spies are."
           end
 
@@ -827,14 +851,14 @@ module Cinch
           if player.role?(:merlin)
             # sees spies minus mordred
             spies_minus_mordred = spies.reject{ |s| s.role?(:mordred) }.map{ |s| s.user.nick }
-            missing = @game.with_role?(:mordred) ? " You don't see Mordred." : ""
+            missing = game.with_role?(:mordred) ? " You don't see Mordred." : ""
             loyalty_msg = "You are MERLIN (resistance). Don't let the spies learn who you are. The spies are: #{spies_minus_mordred.join(', ')}.#{missing}"
           elsif player.role?(:assassin)
             loyalty_msg = "You are THE ASSASSIN (spy). Try to figure out who Merlin is.#{spy_info}"
           elsif player.role?(:percival)
             # sees merlin (and morgana)
-            merlin = @game.find_player_by_role(:merlin)
-            morgana = @game.find_player_by_role(:morgana)
+            merlin = game.find_player_by_role(:merlin)
+            morgana = game.find_player_by_role(:morgana)
             if morgana.nil?
               percy_info = "Merlin is: #{merlin.user.nick}."
             else
@@ -843,12 +867,12 @@ module Cinch
             end
             loyalty_msg = "You are PERCIVAL (resistance). Help protect Merlin's identity. #{percy_info}"
           elsif player.role?(:good_lancelot)
-            evil_lancelot = @game.find_player_by_role(:evil_lancelot)
-            show_other = @game.variants.include?(:lancelot3) ? "Evil Lancelot is: #{evil_lancelot.user.nick}." : ""
+            evil_lancelot = game.find_player_by_role(:evil_lancelot)
+            show_other = game.variants.include?(:lancelot3) ? "Evil Lancelot is: #{evil_lancelot.user.nick}." : ""
             loyalty_msg = "You are GOOD LANCELOT (resistance).#{show_other}"
           elsif player.role?(:evil_lancelot)
-            good_lancelot = @game.find_player_by_role(:good_lancelot)
-            show_other = @game.variants.include?(:lancelot3) ? "Good Lancelot is: #{good_lancelot.user.nick}.#{spy_info}" : ""
+            good_lancelot = game.find_player_by_role(:good_lancelot)
+            show_other = game.variants.include?(:lancelot3) ? "Good Lancelot is: #{good_lancelot.user.nick}.#{spy_info}" : ""
             loyalty_msg = "You are EVIL LANCELOT (spy).#{show_other}"
           elsif player.role?(:mordred)
             loyalty_msg = "You are MORDRED (spy). You didn't reveal yourself to Merlin.#{spy_info}"
@@ -864,15 +888,15 @@ module Cinch
             loyalty_msg = "I don't know what you are. Something's gone wrong."
           end
 
-          if @game.assassin_dual && player.role?(@game.assassin_dual)
+          if game.assassin_dual && player.role?(game.assassin_dual)
             loyalty_msg += "\nIn addition, you are THE ASSASSIN. Try to figure out who Merlin is."
           end
         else
           if player.spy?
-            if @game.with_variant?(:blind_spies)
+            if game.with_variant?(:blind_spies)
               spy_message = "This is the Blind Spies variant. You are a spy, but you don't reveal to the other spies and they don't reveal to you."
             else
-              other_spies = @game.spies.reject{ |s| s == player }.map{ |s| s.user.nick }
+              other_spies = game.spies.reject{ |s| s == player }.map{ |s| s.user.nick }
               spy_message = "The other spies are: #{other_spies.join(', ')}."
             end
             loyalty_msg = "You are A SPY! #{spy_message}"
@@ -884,13 +908,14 @@ module Cinch
       end
 
       def warn_about_lancelots(player)
+        game = @game
         message = nil
         if player.role?(:evil_lancelot)
           message = "You are now a member of the RESISTANCE."
         elsif player.role?(:good_lancelot)
           message = "You are now a SPY."
         elsif player.spy? && !player.role?(:oberon)
-          evil_lancelot = @game.find_player_by_role(:evil_lancelot)
+          evil_lancelot = game.find_player_by_role(:evil_lancelot)
           message = "#{evil_lancelot.user.nick} (Evil Lancelot) is now Good. Good Lancelot has joined your side, but you do not know his identity."
         elsif player.role?(:merlin)
           message = "One of the spies you originally saw is now on the side of Good, and there is now an additional spy whose identity you do not know."
@@ -901,57 +926,62 @@ module Cinch
       end
 
       def get_game_info
-        team_sizes = @game.team_sizes.values
-        if @game.player_count >= 7
+        game = @game
+        team_sizes = game.team_sizes.values
+        if game.player_count >= 7
           team_sizes[3] = team_sizes.at(3).to_s + "*"
         end
-        "There are #{@game.player_count} players, with #{@game.spies.count} spies. Team sizes will be: #{team_sizes.join(", ")}"
+        "There are #{game.player_count} players, with #{game.spies.count} spies. Team sizes will be: #{team_sizes.join(", ")}"
       end
 
       def get_loyalty_info
-        if @game.type == :avalon
-          spies = @game.spies.sort_by{|s| s.loyalty}.map do |s|
+        game = @game
+        if game.type == :avalon
+          spies = game.spies.sort_by{|s| s.loyalty}.map do |s|
             role = ""
             if s.loyalty != :spy
               role = s.loyalty.to_s.gsub("_", " ").titleize
-              role += "/Assassin" if @game.assassin_dual == s.loyalty
+              role += "/Assassin" if game.assassin_dual == s.loyalty
               role = " (" + role + ")"
             end
             s.user.nick + role
           end
-          resistance = @game.resistance.sort_by{|r| r.loyalty}.map do |r|
+          resistance = game.resistance.sort_by{|r| r.loyalty}.map do |r|
             "#{r.user.nick}" + (r.loyalty != :resistance ? " (#{r.loyalty.to_s.gsub("_"," ").titleize})" : "" )
           end          
         else
-          spies = @game.spies.map{ |s| s.user.nick }
-          resistance = @game.resistance.map{ |r| r.user.nick }
+          spies = game.spies.map{ |s| s.user.nick }
+          resistance = game.resistance.map{ |r| r.user.nick }
         end
         return spies, resistance
       end
 
       def start_new_round
-        @game.start_new_round
+        game = @game
+        game.start_new_round
         self.show_lancelot_card
 
-        two_fail_warning = (@game.current_round.special_round?) ? " This mission requires TWO FAILS for the spies." : ""
-        Channel(@channel_name).send "MISSION #{@game.current_round.number}. Team Leader: #{@game.team_leader.user.nick}. Please choose a team of #{@game.current_team_size} to go on the mission.#{two_fail_warning}"
-        User(@game.team_leader.user).send "You are team leader. Please choose a team of #{@game.current_team_size} to go on the mission. \"!team#{team_example(@game.current_team_size)}\""
+        two_fail_warning = (game.current_round.special_round?) ? " This mission requires TWO FAILS for the spies." : ""
+        Channel(@channel_name).send "MISSION #{game.current_round.number}. Team Leader: #{game.team_leader.user.nick}. Please choose a team of #{game.current_team_size} to go on the mission.#{two_fail_warning}"
+        User(game.team_leader.user).send "You are team leader. Please choose a team of #{game.current_team_size} to go on the mission. \"!team#{team_example(game.current_team_size)}\""
       end
 
       def lancelot_info(m)
-        return unless @game.started?
-        msg = "Lancelots currently follow their " + (@game.lancelots_switched? ? "opposite" : "original") + " allegiance."
-        if @game.with_variant?(:lancelot2)
-          rounds_left = 5 - @game.current_round.number
+        game = @game
+        return unless game.started?
+        msg = "Lancelots currently follow their " + (game.lancelots_switched? ? "opposite" : "original") + " allegiance."
+        if game.with_variant?(:lancelot2)
+          rounds_left = 5 - game.current_round.number
           msg += " Lancelot changes sides in the upcoming rounds: " + format_lancelot_deck(rounds_left)
         end
         m.reply(msg)
       end
 
       def format_lancelot_deck(num = 5)
+        game = @game
         # play_lancelot_card uses pop, which takes out the LAST element of an array.
         # To show the lancelot deck in the right order we must reverse!
-        @game.lancelot_deck.reverse.take(num).map { |c|
+        game.lancelot_deck.reverse.take(num).map { |c|
           case c
           when :switch
             "YES"
@@ -964,15 +994,16 @@ module Cinch
       end
 
       def show_lancelot_card
-        return if @game.current_round.lancelot_card.nil?
+        game = @game
+        return if game.current_round.lancelot_card.nil?
 
-        if @game.current_round.lancelots_switch?
+        if game.current_round.lancelots_switch?
           Channel(@channel_name).send "LANCELOTS: Switch!"
-          evil_lancelot = @game.find_player_by_role(:evil_lancelot)
-          good_lancelot = @game.find_player_by_role(:good_lancelot)
+          evil_lancelot = game.find_player_by_role(:evil_lancelot)
+          good_lancelot = game.find_player_by_role(:good_lancelot)
           good_loyalty_msg = "LANCELOTS SWITCH: You are now a member of the RESISTANCE."
           evil_loyalty_msg = "LANCELOTS SWITCH: You are now a SPY."
-          if @game.lancelots_switched?
+          if game.lancelots_switched?
             User(good_lancelot.user).send evil_loyalty_msg
             User(evil_lancelot.user).send good_loyalty_msg
           else
@@ -986,21 +1017,23 @@ module Cinch
       end
 
       def team_leader_prompt
-        excalibur_instructions = @game.with_variant?(:excalibur) ? " You must give Excalibur to someone other than yourself; indicate your choice with a + symbol before or after that player's name." : ""
-        prompt = "You are team leader. Please choose a team of #{@game.current_team_size} to go on the mission. \"!team#{team_example(@game.current_team_size)}\".#{excalibur_instructions}"
+        game = @game
+        excalibur_instructions = game.with_variant?(:excalibur) ? " You must give Excalibur to someone other than yourself; indicate your choice with a + symbol before or after that player's name." : ""
+        prompt = "You are team leader. Please choose a team of #{game.current_team_size} to go on the mission. \"!team#{team_example(game.current_team_size)}\".#{excalibur_instructions}"
       end
 
       def process_team_votes
+        game = @game
         # reveal the votes
-        Channel(@channel_name).send "The votes are in for the team: #{format_team(@game.current_round.team)}"
-        Channel(@channel_name).send self.format_votes(@game.current_round.team.team_votes, false)
+        Channel(@channel_name).send "The votes are in for the team: #{format_team(game.current_round.team)}"
+        Channel(@channel_name).send self.format_votes(game.current_round.team.team_votes, false)
 
         # determine if team makes
-        if @game.current_round.team_makes?
-          @game.go_on_mission
+        if game.current_round.team_makes?
+          game.go_on_mission
           Channel(@channel_name).send "This team is going on the mission!"
-          @game.current_round.team.players.each do |p|
-            if @game.with_variant?(:lancelot2) && p.currently_evil_lancelot?
+          game.current_round.team.players.each do |p|
+            if game.with_variant?(:lancelot2) && p.currently_evil_lancelot?
               mission_prompt = 'Mission time! Since you are the currently-evil Lancelot, you can only choose to FAIL the mission. "!mission fail"'
             elsif p.spy?
               mission_prompt = 'Mission time! Since you are a spy, you have the option to PASS or FAIL the mission. "!mission pass" or "!mission fail"'
@@ -1010,15 +1043,15 @@ module Cinch
             User(p.user).send mission_prompt
           end
         else
-          @game.try_making_team_again
-          Channel(@channel_name).send "This team is NOT going on the mission. Reject count: #{@game.current_round.fail_count}"
-          if @game.current_round.too_many_fails?
+          game.try_making_team_again
+          Channel(@channel_name).send "This team is NOT going on the mission. Reject count: #{game.current_round.fail_count}"
+          if game.current_round.too_many_fails?
             self.do_end_game
           else
-            hammer_warning = (@game.current_round.hammer_team?) ? " This is your LAST chance at making a team for this mission; if this team is not accepted, the Resistance loses." : ""
-            Channel(@channel_name).send "MISSION #{@game.current_round.number}. #{@game.team_leader.user.nick} is the new team leader. Please choose a team of #{@game.current_team_size} to go on the mission.#{hammer_warning}"
-            User(@game.team_leader.user).send "You are the new team leader. Please choose a team of #{@game.current_team_size} to go on the mission. \"!team#{team_example(@game.current_team_size)}\""
-            @game.current_round.back_to_team_making
+            hammer_warning = (game.current_round.hammer_team?) ? " This is your LAST chance at making a team for this mission; if this team is not accepted, the Resistance loses." : ""
+            Channel(@channel_name).send "MISSION #{game.current_round.number}. #{game.team_leader.user.nick} is the new team leader. Please choose a team of #{game.current_team_size} to go on the mission.#{hammer_warning}"
+            User(game.team_leader.user).send "You are the new team leader. Please choose a team of #{game.current_team_size} to go on the mission. \"!team#{team_example(game.current_team_size)}\""
+            game.current_round.back_to_team_making
           end
 
         end
@@ -1039,15 +1072,16 @@ module Cinch
       end
 
       def process_mission_votes
+        game = @game
         # reveal the results
         Channel(@channel_name).send "The team is back from the mission..."
-        @game.current_round.mission_votes.values.sort.reverse.each do |vote|
+        game.current_round.mission_votes.values.sort.reverse.each do |vote|
           sleep 3
           Channel(@channel_name).send vote.upcase
         end
         sleep 2
         # determine if mission passes
-        if @game.current_round.mission_success?
+        if game.current_round.mission_success?
           Channel(@channel_name).send "... the mission passes!"
         else
           Channel(@channel_name).send "... the mission fails!"
@@ -1056,36 +1090,39 @@ module Cinch
       end
 
       def prompt_for_excalibur
-        @game.current_round.ask_for_excalibur
-        excalibur_holder = @game.current_round.excalibur_holder
+        game = @game
+        game.current_round.ask_for_excalibur
+        excalibur_holder = game.current_round.excalibur_holder
         Channel(@channel_name).send "EXCALIBUR: #{excalibur_holder.user.nick}, do you want to use Excalibur?"
         User(excalibur_holder.user).send "You have Excalibur. You can use it on someone, \"!excalibur name\", or choose not to \"!sheath\""
       end
 
       def check_game_state
+        game = @game
         Channel(@channel_name).send self.game_score
-        if @game.is_over?
+        if game.is_over?
           self.do_end_game
-        elsif @game.is_lady_round?
-          @game.current_round.lady_time
-          Channel(@channel_name).send "LADY OF THE LAKE. #{@game.lady_token.user.nick}, choose someone to check."
-          User(@game.lady_token.user).send "You have Lady of the Lake. Please choose someone to check. \"!lady name\""
+        elsif game.is_lady_round?
+          game.current_round.lady_time
+          Channel(@channel_name).send "LADY OF THE LAKE. #{game.lady_token.user.nick}, choose someone to check."
+          User(game.lady_token.user).send "You have Lady of the Lake. Please choose someone to check. \"!lady name\""
         else
           self.start_new_round
         end
       end
 
       def do_end_game
+        game = @game
         spies, resistance = get_loyalty_info
-        if @game.spies_win?
+        if game.spies_win?
           Channel(@channel_name).send "Game is over! The spies have won!"
           Channel(@channel_name).send "The spies were: #{spies.join(", ")}"
           Channel(@channel_name).send "The resistance were: #{resistance.join(", ")}"
           self.start_new_game
         else
-          if @game.avalon?
-            @game.assassinate
-            assassin = @game.find_assassin
+          if game.avalon?
+            game.assassinate
+            assassin = game.find_assassin
             Channel(@channel_name).send "The resistance successfully completed the missions, but the spies still have a chance."
             Channel(@channel_name).send "The Assassin is: #{assassin.user.nick}. Choose a rebel to assassinate."
             User(assassin.user).send "You are the assassin, and it's time to assassinate one of the resistance. \"!assassinate name\""
@@ -1099,18 +1136,20 @@ module Cinch
       end
 
       def start_new_game
+        game = @game
         Channel(@channel_name).moderated = false
-        @game.players.each do |p|
+        game.players.each do |p|
           Channel(@channel_name).devoice(p.user)
         end
-        @game.save_game(@games_dir)
+        game.save_game(@games_dir)
         @game = Game.new(@channel_name)
         @idle_timer.start
       end
 
 
       def game_score
-        @game.mission_results.map{ |mr| mr ? "O" : "X" }.join(" ")
+        game = @game
+        game.mission_results.map{ |mr| mr ? "O" : "X" }.join(" ")
       end
 
       def devoice_channel
@@ -1120,10 +1159,10 @@ module Cinch
       end
 
       def remove_user_from_game(user)
-        if @game.not_started?
-          left = @game.remove_player(user)
+        if game.not_started?
+          left = game.remove_player(user)
           unless left.nil?
-            Channel(@channel_name).send "#{user.nick} has left the game (#{@game.players.count}/#{Game::MAX_PLAYERS})"
+            Channel(@channel_name).send "#{user.nick} has left the game (#{game.players.count}/#{Game::MAX_PLAYERS})"
             Channel(@channel_name).devoice(user)
           end
         end
@@ -1145,8 +1184,9 @@ module Cinch
       end
 
       def reset_game(m)
+        game = @game
         if self.is_mod? m.user.nick
-          if @game.started?
+          if game.started?
             spies, resistance = get_loyalty_info
             Channel(@channel_name).send "The spies were: #{spies.join(", ")}"
             Channel(@channel_name).send "The resistance were: #{resistance.join(", ")}"
@@ -1159,12 +1199,13 @@ module Cinch
       end
 
       def kick_user(m, nick)
+        game = @game
         if self.is_mod? m.user.nick
-          if @game.not_started?
+          if game.not_started?
             user = User(nick)
-            left = @game.remove_player(user)
+            left = game.remove_player(user)
             unless left.nil?
-              Channel(@channel_name).send "#{user.nick} has left the game (#{@game.players.count}/#{Game::MAX_PLAYERS})"
+              Channel(@channel_name).send "#{user.nick} has left the game (#{game.players.count}/#{Game::MAX_PLAYERS})"
               Channel(@channel_name).devoice(user)
             end
           else
@@ -1174,13 +1215,14 @@ module Cinch
       end
 
       def replace_user(m, nick1, nick2)
+        game = @game
         if self.is_mod? m.user.nick
           # find irc users based on nick
           user1 = User(nick1)
           user2 = User(nick2)
           
           # replace the users for the players
-          player = @game.find_player(user1)
+          player = game.find_player(user1)
           player.user = user2
 
           # devoice/voice the players
@@ -1208,13 +1250,14 @@ module Cinch
       end
 
       def who_spies(m)
+        game = @game
         if self.is_mod? m.user.nick
-          if @game.started?
-            if @game.has_player?(m.user)
+          if game.started?
+            if game.has_player?(m.user)
               User(m.user).send "You are in the game, goof!"
             else
               spies, resistance = get_loyalty_info  
-              if @game.type == :avalon
+              if game.type == :avalon
                 User(m.user).send "Avalon Roles:"
                 User(m.user).send "Spies are #{spies.join(", ")}."
                 User(m.user).send "Resistance are #{resistance.join(", ")}."
@@ -1233,8 +1276,9 @@ module Cinch
       #--------------------------------------------------------------------------------
 
       def get_game_settings(m)
-        with_variants = @game.variants.empty? ? "" : " Using variants: #{self.game_settings[:variants].join(", ")}."
-        if @game.avalon?
+        game = @game
+        with_variants = game.variants.empty? ? "" : " Using variants: #{self.game_settings[:variants].join(", ")}."
+        if game.avalon?
           m.reply "Game settings: Avalon. Using roles: #{self.game_settings[:roles].join(", ")}.#{with_variants}"
         else
           m.reply "Game settings: Base.#{with_variants}"
@@ -1242,8 +1286,9 @@ module Cinch
       end
 
       def set_game_settings(m, game_type, game_options = "")
+        game = @game
         # this is really really wonky =(
-        unless @game.started?
+        unless game.started?
           game_change_prefix = m.channel.nil? ? "#{m.user.nick} has changed the game" : "The game has been changed"
           options = game_options || ""
           options = options.downcase.split(" ")
@@ -1275,13 +1320,13 @@ module Cinch
               roles.push("good_lancelot").push("evil_lancelot")
             end
 
-            @game.change_type :avalon, :roles => roles, :variants => variant_options, :assassin_dual => assassin_dual
+            game.change_type :avalon, :roles => roles, :variants => variant_options, :assassin_dual => assassin_dual
             game_type_message = "#{game_change_prefix} to Avalon. Using roles: #{self.game_settings[:roles].join(", ")}."
           else
             valid_variant_options = ["blind_spies", "lady", "excalibur"]
             variant_options = options.select{ |opt| valid_variant_options.include?(opt.downcase) }
             
-            @game.change_type :base, :variants => variant_options
+            game.change_type :base, :variants => variant_options
             game_type_message = "#{game_change_prefix} to base."
           end
           with_variants = self.game_settings[:variants].empty? ? "" : " Using variants: #{self.game_settings[:variants].join(", ")}."
@@ -1290,20 +1335,21 @@ module Cinch
       end
 
       def game_settings
+        game = @game
         settings = {}
-        settings[:roles] = @game.roles.map{ |r|
-          dualed = @game.assassin_dual == r
+        settings[:roles] = game.roles.map{ |r|
+          dualed = game.assassin_dual == r
           r.to_s.gsub("_", " ").titleize + (dualed ? "/Assassin" : "")
         }
         settings[:variants] = []
-        if @game.avalon?
-          settings[:variants] << "Lancelot #1" if @game.variants.include?(:lancelot1)
-          settings[:variants] << "Lancelot #2" if @game.variants.include?(:lancelot2)
-          settings[:variants] << "Lancelot #3" if @game.variants.include?(:lancelot3)
-          settings[:variants] << "Lady of the Lake" if @game.variants.include?(:lady)
-          settings[:variants] << "Excalibur" if @game.variants.include?(:excalibur)
+        if game.avalon?
+          settings[:variants] << "Lancelot #1" if game.variants.include?(:lancelot1)
+          settings[:variants] << "Lancelot #2" if game.variants.include?(:lancelot2)
+          settings[:variants] << "Lancelot #3" if game.variants.include?(:lancelot3)
+          settings[:variants] << "Lady of the Lake" if game.variants.include?(:lady)
+          settings[:variants] << "Excalibur" if game.variants.include?(:excalibur)
         else
-          settings[:variants] = @game.variants.map{ |o| o.to_s.gsub("_", " ").titleize }
+          settings[:variants] = game.variants.map{ |o| o.to_s.gsub("_", " ").titleize }
         end
         settings
       end
