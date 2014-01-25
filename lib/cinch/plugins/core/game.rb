@@ -29,8 +29,10 @@ class Game
     }
 
   attr_accessor :started, :players, :rounds, :type, :roles, :variants, :lancelot_deck, :lady_token, :assassin_dual, :invitation_sent, :time_start, :time_end
+  attr_accessor :channel_name
   
-  def initialize
+  def initialize(channel_name)
+    self.channel_name    = channel_name
     self.started         = false
     self.players         = []
     self.rounds          = []
