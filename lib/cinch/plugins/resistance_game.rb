@@ -545,76 +545,80 @@ module Cinch
       def propose_team(m, team_members)
         if team_members != "confirm" 
           # make sure the providing user is team leader 
-          player_nicks = @game.players.map{|p| p.user.nick }
           if m.user == @game.team_leader.user
             unless @game.current_round.in_team_making_phase? || @game.current_round.in_team_proposed_phase?
               m.reply('The team has already been confirmed.', true)
               return
             end
 
-            valid_team = false
-            players = []
-            players_with_xcal = []  
-            team_members.split(/[\s,]+/).each do |p| 
-              fuzzy_matches = p.levenshtein_similar(player_nicks) # leve_matches
-              # jaro_matches = p.jaro_similar(player_nicks)
-              # fuzzy_matches = [jaro_matches,leve_matches].transpose.map {|x| x.reduce(:+)}
-              high_fuzzy = fuzzy_matches.max
-              
-              if high_fuzzy > 0.15
-                best_nick = player_nicks[fuzzy_matches.index(high_fuzzy)]
-              else 
-                best_nick = p
-              end
-              player = @game.find_player(User(best_nick)) || best_nick
-              xcal = p.end_with?("+") || p.start_with?("+")
-              players_with_xcal << { :player => player, :xcal => xcal } 
-              players << player
-            end
-
-            players.uniq!
-
-            non_players = players.dup.delete_if{ |p| p.is_a? Player }
-            actual_players = players.dup.keep_if{ |p| p.is_a? Player }
-
-            # make sure the names are valid
-            if non_players.count > 0
-              User(@game.team_leader.user).send "Cannot find player(s): #{non_players.join(', ')}"
-            # then check sizes
-            elsif players.count < @game.current_team_size
-              User(@game.team_leader.user).send "You don't have enough operatives on the team. You need #{@game.current_team_size}."
-            elsif players.count > @game.current_team_size
-              User(@game.team_leader.user).send "You have too many operatives on the team. You need #{@game.current_team_size}."
-            # then we are okay
-            else
-              if @game.variants.include?(:excalibur)
-                players_with_xcal.keep_if{ |px| px[:xcal] }
-                # none
-                if players_with_xcal.count == 0
-                  User(@game.team_leader.user).send "You must give Excalibur to someone."
-                # too many
-                elsif players_with_xcal.count > 1
-                  User(@game.team_leader.user).send "You can only give Excalibur to one operative."
-                # should only be one by this point
-                elsif players_with_xcal.first[:player].user == m.user
-                  User(@game.team_leader.user).send "You cannot give Excalibur to yourself."
-                else
-                  valid_team = true
-                  @game.current_round.team.give_excalibur_to(players_with_xcal.first[:player])
-                end
-              else
-                valid_team = true
-              end
-            end
-            if valid_team
-              @game.make_team(actual_players)
-              if @game.team_selected? # another safe check just because
-                Channel(@channel_name).send "#{m.user.nick} is proposing the team: #{self.current_proposed_team}."
-                @game.current_round.team_proposed
-              end
-            end
+            self._propose_team(m, team_members)
           else
             User(m.user).send "You are not the team leader."
+          end
+        end
+      end
+
+      def _propose_team(m, team_members)
+        player_nicks = @game.players.map{|p| p.user.nick }
+        valid_team = false
+        players = []
+        players_with_xcal = []
+        team_members.split(/[\s,]+/).each do |p|
+          fuzzy_matches = p.levenshtein_similar(player_nicks) # leve_matches
+          # jaro_matches = p.jaro_similar(player_nicks)
+          # fuzzy_matches = [jaro_matches,leve_matches].transpose.map {|x| x.reduce(:+)}
+          high_fuzzy = fuzzy_matches.max
+
+          if high_fuzzy > 0.15
+            best_nick = player_nicks[fuzzy_matches.index(high_fuzzy)]
+          else
+            best_nick = p
+          end
+          player = @game.find_player(User(best_nick)) || best_nick
+          xcal = p.end_with?("+") || p.start_with?("+")
+          players_with_xcal << { :player => player, :xcal => xcal }
+          players << player
+        end
+
+        players.uniq!
+
+        non_players = players.dup.delete_if{ |p| p.is_a? Player }
+        actual_players = players.dup.keep_if{ |p| p.is_a? Player }
+
+        # make sure the names are valid
+        if non_players.count > 0
+          User(@game.team_leader.user).send "Cannot find player(s): #{non_players.join(', ')}"
+        # then check sizes
+        elsif players.count < @game.current_team_size
+          User(@game.team_leader.user).send "You don't have enough operatives on the team. You need #{@game.current_team_size}."
+        elsif players.count > @game.current_team_size
+          User(@game.team_leader.user).send "You have too many operatives on the team. You need #{@game.current_team_size}."
+        # then we are okay
+        else
+          if @game.variants.include?(:excalibur)
+            players_with_xcal.keep_if{ |px| px[:xcal] }
+            # none
+            if players_with_xcal.count == 0
+              User(@game.team_leader.user).send "You must give Excalibur to someone."
+            # too many
+            elsif players_with_xcal.count > 1
+              User(@game.team_leader.user).send "You can only give Excalibur to one operative."
+            # should only be one by this point
+            elsif players_with_xcal.first[:player].user == m.user
+              User(@game.team_leader.user).send "You cannot give Excalibur to yourself."
+            else
+              valid_team = true
+              @game.current_round.team.give_excalibur_to(players_with_xcal.first[:player])
+            end
+          else
+            valid_team = true
+          end
+        end
+        if valid_team
+          @game.make_team(actual_players)
+          if @game.team_selected? # another safe check just because
+            Channel(@channel_name).send "#{m.user.nick} is proposing the team: #{self.current_proposed_team}."
+            @game.current_round.team_proposed
           end
         end
       end
@@ -636,22 +640,26 @@ module Cinch
         # make sure the providing user is team leader 
         if m.user == @game.team_leader.user
           if @game.team_selected?
-            unless @game.current_round.in_vote_phase?
-              @game.current_round.call_for_votes
-              Channel(@channel_name).send "The proposed team: #{self.current_proposed_team}. Time to vote!"
-              @game.players.each do |p|
-                hammer_warning = (@game.current_round.hammer_team?) ? " This is your LAST chance at voting a team for this mission; if this team is not accepted, the Resistance loses." : ""
-                vote_prompt = "Time to vote! Vote whether or not you want #{@game.team_leader.user}'s team (#{self.current_proposed_team}) to go on the mission or not. \"!vote yes\" or \"!vote no\".#{hammer_warning}"
-                User(p.user).send vote_prompt
-              end
-            else
-              User(@game.team_leader.user).send "The team has already been confirmed"
-            end
+            self._confirm_team(m)
           else 
             User(@game.team_leader.user).send "You don't have enough members on the team. You need #{@game.current_team_size} operatives."
           end 
         else
           User(m.user).send "You are not the team leader."
+        end
+      end
+
+      def _confirm_team(m)
+        unless @game.current_round.in_vote_phase?
+          @game.current_round.call_for_votes
+          Channel(@channel_name).send "The proposed team: #{self.current_proposed_team}. Time to vote!"
+          @game.players.each do |p|
+            hammer_warning = (@game.current_round.hammer_team?) ? " This is your LAST chance at voting a team for this mission; if this team is not accepted, the Resistance loses." : ""
+            vote_prompt = "Time to vote! Vote whether or not you want #{@game.team_leader.user}'s team (#{self.current_proposed_team}) to go on the mission or not. \"!vote yes\" or \"!vote no\".#{hammer_warning}"
+            User(p.user).send vote_prompt
+          end
+        else
+          User(@game.team_leader.user).send "The team has already been confirmed"
         end
       end
 
