@@ -76,7 +76,7 @@ module Cinch
       match /reset/i,              :method => :reset_game
       match /replace (.+?) (.+)/i, :method => :replace_user
       match /kick (.+)/i,          :method => :kick_user
-      match /room (.+)/i,          :method => :room_mode
+      match /room (?: (#\w+))?(.+)/i, :method => :room_mode
       match /roles/i,              :method => :who_spies
 
 
@@ -1238,13 +1238,16 @@ module Cinch
         end
       end
 
-      def room_mode(m, mode)
+      def room_mode(m, channel_name, mode)
+        channel = channel_name ? Channel(channel_name) : m.channel
+        return unless channel
+
         if self.is_mod? m.user.nick
           case mode
           when "silent"
-            Channel(@channel_name).moderated = true
+            channel.moderated = true
           when "vocal"
-            Channel(@channel_name).moderated = false
+            channel.moderated = false
           end
         end
       end
