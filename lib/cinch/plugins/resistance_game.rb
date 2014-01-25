@@ -82,6 +82,9 @@ module Cinch
       match /room (.+)/i,          :method => :room_mode
       match /roles/i,              :method => :who_spies
 
+      match /test players (.+)/i,  :method => :test_players
+      match /test start/i,         :method => :test_start
+      match /test team (\w+) (\w+) (.+)/i, :method => :test_team
 
       listen_to :join,          :method => :voice_if_in_game
       listen_to :leaving,       :method => :remove_if_not_started
@@ -1521,6 +1524,63 @@ module Cinch
         settings
       end
 
+
+      #--------------------------------------------------------------------------------
+      # Test
+      #--------------------------------------------------------------------------------
+
+      def test_players(m, players)
+        return unless self.is_mod?(m.user.nick)
+
+        added_nicks = []
+        players.split.each { |nick|
+          added = @game.add_player(User(nick))
+          added_nicks << nick if added
+        }
+        m.reply("Added the players " + added_nicks.join(", "))
+      end
+
+      def test_start(m)
+        return unless self.is_mod?(m.user.nick)
+
+        self.start_game(m)
+
+        spies, resistance = get_loyalty_info
+        User(m.user).send "Spies are #{spies.join(", ")}."
+        User(m.user).send "Resistance are #{resistance.join(", ")}."
+      end
+
+      def test_team(m, team_vote, mission_vote, team_members)
+        return unless self.is_mod?(m.user.nick)
+
+        unless ['yes', 'no'].include?(team_vote)
+          m.reply(team_vote + ' is not a valid team vote')
+          return
+        end
+        unless team_vote == 'no' || ['pass', 'fail'].include?(mission_vote)
+          m.reply(mission_vote + ' is not a valid mission vote')
+          return
+        end
+
+        self._propose_team(m, team_members)
+        return unless @game.team_selected?
+
+        self._confirm_team(m)
+
+        @game.players.each { |player|
+          @game.vote_for_team(player.user, team_vote)
+        }
+        self.process_team_votes
+
+        @game.current_round.team.players.each { |player|
+          @game.vote_for_mission(player.user, mission_vote)
+        }
+        if @game.variants.include?(:excalibur)
+          self.prompt_for_excalibur
+        else
+          self.process_mission_votes
+        end
+      end
 
       #--------------------------------------------------------------------------------
       # Settings
