@@ -607,7 +607,7 @@ module Cinch
             elsif players_with_xcal.count > 1
               User(@game.team_leader.user).send "You can only give Excalibur to one operative."
             # should only be one by this point
-            elsif players_with_xcal.first[:player].user == m.user
+            elsif players_with_xcal.first[:player].user == @game.team_leader.user
               User(@game.team_leader.user).send "You cannot give Excalibur to yourself."
             else
               valid_team = true
