@@ -1577,7 +1577,9 @@ module Cinch
         @game.current_round.team.players.each { |player|
           @game.vote_for_mission(player.user, mission_vote)
         }
-        if @game.variants.include?(:excalibur)
+        if @game.variants.include?(:trapper)
+          self.prompt_for_trapper
+        elsif @game.variants.include?(:excalibur)
           self.prompt_for_excalibur
         else
           self.process_mission_votes
