@@ -8,6 +8,12 @@ require File.expand_path(File.dirname(__FILE__)) + '/core/team.rb'
 require File.expand_path(File.dirname(__FILE__)) + '/core/player.rb'
 
 module Cinch
+  class User
+    def send(msg, *_)
+      puts "PM \e[31m#{self.name}\e[0m #{msg}"
+    end
+  end
+
   module Plugins
 
     CHANGELOG_FILE = File.expand_path(File.dirname(__FILE__)) + "/changelog.yml"
