@@ -84,7 +84,7 @@ module Cinch
 
       match /test players (.+)/i,  :method => :test_players
       match /test start/i,         :method => :test_start
-      match /test team (\w+) (\w+) (.+)/i, :method => :test_team
+      match /test team (\w+)(?: (pass|fail))? (.+)/i, :method => :test_team
 
       listen_to :join,          :method => :voice_if_in_game
       listen_to :leaving,       :method => :remove_if_not_started
@@ -1557,9 +1557,20 @@ module Cinch
           m.reply(team_vote + ' is not a valid team vote')
           return
         end
-        unless team_vote == 'no' || ['pass', 'fail', 'nil'].include?(mission_vote)
+        unless team_vote == 'no' || ['pass', 'fail'].include?(mission_vote) || mission_vote.nil?
           m.reply(mission_vote + ' is not a valid mission vote')
           return
+        end
+
+        votes = {}
+
+        if team_members.include?('=')
+          team_members.split.each { |name_and_vote|
+            name_and_vote = name_and_vote.split('=')
+            next if name_and_vote.size == 1
+            votes[name_and_vote.first] = name_and_vote.last
+          }
+          team_members = team_members.split.map { |x| x.split('=').first }.join(' ')
         end
 
         self._propose_team(m, team_members)
@@ -1572,11 +1583,14 @@ module Cinch
         }
         self.process_team_votes
 
-        return if mission_vote == 'nil'
-
         @game.current_round.team.players.each { |player|
-          @game.vote_for_mission(player.user, mission_vote)
+          vote = votes[player.user.name] || mission_vote
+          next unless vote
+          @game.vote_for_mission(player.user, vote)
         }
+
+        return unless @game.all_mission_votes_in?
+
         if @game.variants.include?(:trapper)
           self.prompt_for_trapper
         elsif @game.variants.include?(:excalibur)
