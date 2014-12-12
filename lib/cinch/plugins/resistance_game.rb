@@ -1529,6 +1529,10 @@ module Cinch
       # Test
       #--------------------------------------------------------------------------------
 
+      def sleep(_)
+        nil
+      end
+
       def test_players(m, players)
         return unless self.is_mod?(m.user.nick)
 
