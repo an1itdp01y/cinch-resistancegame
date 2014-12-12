@@ -1543,8 +1543,17 @@ module Cinch
 
         added_nicks = []
         players.split.each { |nick|
-          added = @game.add_player(User(nick))
-          added_nicks << nick if added
+          if nick.include?('*')
+            nick, quant = nick.split('*')
+            quant.to_i.times { |i|
+              n = "#{nick}#{i + 1}"
+              added = @game.add_player(User(n))
+              added_nicks << n if added
+            }
+          else
+            added = @game.add_player(User(nick))
+            added_nicks << nick if added
+          end
         }
         m.reply("Added the players " + added_nicks.join(", "))
       end
