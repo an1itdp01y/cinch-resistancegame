@@ -1557,7 +1557,7 @@ module Cinch
           m.reply(team_vote + ' is not a valid team vote')
           return
         end
-        unless team_vote == 'no' || ['pass', 'fail'].include?(mission_vote)
+        unless team_vote == 'no' || ['pass', 'fail', 'nil'].include?(mission_vote)
           m.reply(mission_vote + ' is not a valid mission vote')
           return
         end
@@ -1571,6 +1571,8 @@ module Cinch
           @game.vote_for_team(player.user, team_vote)
         }
         self.process_team_votes
+
+        return if mission_vote == 'nil'
 
         @game.current_round.team.players.each { |player|
           @game.vote_for_mission(player.user, mission_vote)
